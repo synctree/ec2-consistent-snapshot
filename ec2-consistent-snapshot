@@ -35,6 +35,7 @@ my @descriptions               = ();
 my @tags                       = ();
 my $tag_separator              = ";";
 my @freeze_filesystem          = ();
+my @no_freeze_filesystem       = ();
 my $mongo                      = 0;
 my $mongo_username             = undef;
 my $mongo_password             = undef;
@@ -77,6 +78,8 @@ GetOptions(
   'tag=s'                        => \@tags,
   'xfs-filesystem=s'             => \@freeze_filesystem,
   'freeze-filesystem=s'          => \@freeze_filesystem,
+  'filesystem=s'                 => \@no_freeze_filesystem,
+  'no-freeze-filesystem=s'       => \@no_freeze_filesystem,
   'mongo'                        => \$mongo,
   'mongo-username=s'             => \$mongo_username,
   'mongo-password=s'             => \$mongo_password,
@@ -105,7 +108,6 @@ my $filesystem_frozen = 0;
 pod2usage(1) if $Help;
 
 my @volume_ids = @ARGV;
-pod2usage(2) unless scalar @volume_ids;
 
 $ec2_endpoint ||= "https://ec2.$region.amazonaws.com" if $region;
 
@@ -123,6 +125,12 @@ $freeze_cmd    = "xfs_freeze"
 die "$Prog: ERROR: Can't find AWS access key or secret access key"
   unless $use_iam_role or ($aws_access_key_id and $aws_secret_access_key);
 $Debug and warn "$Prog: Using AWS access key: $aws_access_key_id\n";
+
+if ( scalar (@volume_ids) == 0 ) {
+  $Debug and warn "$Prog: No volume ids specified; discovering volumes\n"
+  @volume_ids = discover_volume_ids($ec2_endpoint);
+}
+pod2usage(2) unless scalar @volume_ids;
 
 die "$Prog: ERROR: Descriptions count (", scalar (@descriptions),
     ") does not match volumes count (", scalar (@volume_ids), ")"
@@ -336,6 +344,12 @@ sub ebs_snapshot {
     }
   }
   return 1;
+}
+
+sub discover_volume_ids {
+  my ($ec2_endpoint) = @_;
+  warn "$Prog: WARN: discover_volume_ids unimplemented\n";
+  return ();
 }
 
 #
