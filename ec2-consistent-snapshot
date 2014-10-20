@@ -409,8 +409,8 @@ sub discover_volume_ids {
       : [ basename readlink("/sys/dev/block/$device") ];
 
     for my $device (@$devices) {
-      my $ec2_device = $device;
-      $ec2_device =~ s%^xvd(.*)$%/dev/sd$1%;
+      my $ec2_device = "/dev/$device";
+      $ec2_device =~ s/\bxvd/sd/;
 
       my $volume_id;
       VOLUME: for my $volume (@$ec2_volumes) {
