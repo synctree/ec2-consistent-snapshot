@@ -246,19 +246,26 @@ END {
 
 #---- METHODS ----
 
-sub ebs_snapshot {
-  my ($volume_ids, $ec2_endpoint, $descriptions, $tags) = @_;
+sub ec2_connection {
+  my ($ec2_endpoint) = @_;
 
   $Debug and warn "$Prog: ", scalar localtime, ": create EC2 object\n";
   $Debug and warn "$Prog: Endpoint: $ec2_endpoint\n" if $ec2_endpoint;
 
   # EC2 API object
-  my $ec2 = Net::Amazon::EC2->new(
+  return Net::Amazon::EC2->new(
     ((! $use_iam_role) ? (AWSAccessKeyId  => $aws_access_key_id,) : () ),
     ((! $use_iam_role) ? (SecretAccessKey => $aws_secret_access_key) : () ),
     ($ec2_endpoint ? (base_url => $ec2_endpoint) : ()),
     # ($Debug ? (debug => 1) : ()),
   );
+}
+
+sub ebs_snapshot {
+  my ($volume_ids, $ec2_endpoint, $descriptions, $tags) = @_;
+
+  # EC2 API object
+  my $ec2 = ec2_connection($ec2_endpoint);
 
   if ( not $ec2 ) {
     warn "$Prog: ERROR: Unable to create EC2 connection";
