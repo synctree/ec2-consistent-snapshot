@@ -400,6 +400,9 @@ sub discover_volume_ids {
       return ();
     }
 
+    # Check sysfs for a /slaves directory; if we find one, assume we have a
+    # compound device (e.g. LVM or Raid), otherwise, get the basename of the
+    # symlink at /sys/dev/block/MAJOR:MINOR
     my $slaves = IO::Dir->new("/sys/dev/block/$device/slaves");
     my $devices = ( defined $slaves )
       ? [ grep { !/^\./ } $slaves->read() ]
