@@ -127,7 +127,7 @@ die "$Prog: ERROR: Can't find AWS access key or secret access key"
 $Debug and warn "$Prog: Using AWS access key: $aws_access_key_id\n";
 
 if ( scalar (@volume_ids) == 0 ) {
-  $Debug and warn "$Prog: No volume ids specified; discovering volumes\n"
+  $Debug and warn "$Prog: No volume ids specified; discovering volumes\n";
   @volume_ids = discover_volume_ids($ec2_endpoint);
 }
 pod2usage(2) unless scalar @volume_ids;
