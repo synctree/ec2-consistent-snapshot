@@ -7,8 +7,11 @@ use warnings;
 (our $Prog) = ($0 =~ m%([^/]+)$%);
 use Getopt::Long;
 use Pod::Usage;
+use File::Basename qw(basename);
 use File::Slurp;
+use IO::Dir;
 use IO::Socket::SSL;
+use LWP::Simple qw(get);
 eval 'use Mozilla::CA';
 use Time::HiRes qw(ualarm usleep);
 use Net::Amazon::EC2 0.11;
@@ -127,7 +130,6 @@ die "$Prog: ERROR: Can't find AWS access key or secret access key"
 $Debug and warn "$Prog: Using AWS access key: $aws_access_key_id\n";
 
 if ( scalar (@volume_ids) == 0 ) {
-  $Debug and warn "$Prog: No volume ids specified; discovering volumes\n";
   @volume_ids = discover_volume_ids($ec2_endpoint);
 }
 pod2usage(2) unless scalar @volume_ids;
@@ -346,10 +348,87 @@ sub ebs_snapshot {
   return 1;
 }
 
+sub ec2_instance_volumes {
+  my ($ec2_endpoint) = @_;
+
+  $Debug and warn "$Prog: ", scalar localtime,
+                  ": Determining instance id\n";
+
+  my $instance_id = get('http://169.254.169.254/latest/meta-data/instance-id');
+
+  $Debug and warn "$Prog: ", scalar localtime,
+                  ": Determining volumes for instance id $instance_id\n";
+  my $ec2 = ec2_connection($ec2_endpoint);
+  my $instance_volumes;
+  for my $volume (@{$ec2->describe_volumes()}) {
+    next unless grep { $_->instance_id eq $instance_id } @{$volume->attachments};
+    push @$instance_volumes, $volume;
+  }
+
+  return $instance_volumes;
+}
+
 sub discover_volume_ids {
   my ($ec2_endpoint) = @_;
-  warn "$Prog: WARN: discover_volume_ids unimplemented\n";
-  return ();
+
+  $Debug and warn "$Prog: ", scalar localtime,
+                  ": No volume ids specified; discovering volume ids\n";
+
+  my @filesystems = (@freeze_filesystem, @no_freeze_filesystem);
+
+  if ( scalar(@filesystems) == 0 ) {
+    $Debug and warn "$Prog: ", scalar localtime,
+                    ": No filesystems specified; unable to discover volume ids\n";
+    return ();
+  }
+
+  my $ec2_volumes = ec2_instance_volumes($ec2_endpoint);
+  unless ( defined $ec2_volumes ) {
+    warn "$Prog: ERROR: Unable to determine volumes for instance\n";
+    return ();
+  }
+
+  $Debug and warn "$Prog: ", scalar localtime,
+                  ": Discovering volume ids for: @filesystems\n";
+
+  my $volume_ids;
+  for my $fs (@filesystems) {
+    my $device = qx(mountpoint -dq "$fs");
+    chomp $device;
+    unless ($device) {
+      warn "$Prog: ERROR: $fs is not a mount point\n";
+      return ();
+    }
+
+    my $slaves = IO::Dir->new("/sys/dev/block/$device/slaves");
+    my $devices = ( defined $slaves )
+      ? [ grep { !/^\./ } $slaves->read() ]
+      : [ basename readlink("/sys/dev/block/$device") ];
+
+    for my $device (@$devices) {
+      my $ec2_device = $device;
+      $ec2_device =~ s%^xvd(.*)$%/dev/sd$1%;
+
+      my $volume_id;
+      VOLUME: for my $volume (@$ec2_volumes) {
+        for my $attachment (@{$volume->attachments}) {
+          if ($attachment->device eq $ec2_device) {
+            $volume_id = $volume->volume_id;
+            last VOLUME;
+          }
+        }
+      }
+
+      unless ( defined $volume_id ) {
+        warn "$Prog: ERROR: Unable to determine volume id for device $device in mount $fs\n";
+        return ();
+      }
+
+      push @$volume_ids, $volume_id;
+    }
+  }
+
+  return @$volume_ids;
 }
 
 #
