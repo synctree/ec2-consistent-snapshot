@@ -11,7 +11,7 @@ use File::Basename qw(basename);
 use File::Slurp;
 use IO::Dir;
 use IO::Socket::SSL;
-use LWP::Simple qw(get);
+use LWP::UserAgent qw();
 eval 'use Mozilla::CA';
 use Time::HiRes qw(ualarm usleep);
 use Net::Amazon::EC2 0.11;
@@ -348,6 +348,25 @@ sub ebs_snapshot {
   return 1;
 }
 
+sub get {
+  my ($url) = @_;
+
+  my $ua = LWP::UserAgent->new;
+  $ua->timeout(2);
+
+  my $response = $ua->get($url);
+
+  my $content;
+  if ($response->is_success) {
+    $content = $response->decoded_content;
+  } else {
+    $Debug and warn "$Prog: ", scalar localtime,
+                    ": Unable to fetch $url: @{[$response->status_line]}\n";
+  }
+
+  return $content;
+}
+
 sub ec2_instance_volumes {
   my ($ec2_endpoint) = @_;
 
@@ -355,6 +374,10 @@ sub ec2_instance_volumes {
                   ": Determining instance id\n";
 
   my $instance_id = get('http://169.254.169.254/latest/meta-data/instance-id');
+  unless ( defined $instance_id ) {
+    warn "$Prog: ERROR: Unable to determine instance id\n";
+    return undef;
+  }
 
   $Debug and warn "$Prog: ", scalar localtime,
                   ": Determining volumes for instance id $instance_id\n";
