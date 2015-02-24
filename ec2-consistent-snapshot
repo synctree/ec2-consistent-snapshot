@@ -384,7 +384,7 @@ sub ec2_instance_volumes {
   my $ec2 = ec2_connection($ec2_endpoint);
   my $instance_volumes;
   for my $volume (@{$ec2->describe_volumes()}) {
-    next unless grep { $_->instance_id eq $instance_id } @{$volume->attachments};
+    next unless grep { $_->instance_id eq $instance_id } @{$volume->attachments || []};
     push @$instance_volumes, $volume;
   }
 
