@@ -451,7 +451,7 @@ sub discover_volume_ids {
       $ec2_device =~ s/\bxvd/sd/;
 
       my $volume_id;
-      VOLUME: for my $volume (@$ec2_volumes) {
+      VOLUME: for my $volume (grep { $_->attachments } @$ec2_volumes) {
         for my $attachment (@{$volume->attachments}) {
           if ($attachment->device eq $ec2_device) {
             $volume_id = $volume->volume_id;
