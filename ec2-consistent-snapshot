@@ -382,13 +382,28 @@ sub ec2_instance_volumes {
   $Debug and warn "$Prog: ", scalar localtime,
                   ": Determining volumes for instance id $instance_id\n";
   my $ec2 = ec2_connection($ec2_endpoint);
-  my $instance_volumes;
-  for my $volume (@{$ec2->describe_volumes()}) {
-    next unless grep { $_->instance_id eq $instance_id } @{$volume->attachments || []};
-    push @$instance_volumes, $volume;
+
+  my $reservations = $ec2->describe_instances(InstanceId => $instance_id);
+  unless ( defined($reservations) && scalar(@$reservations) == 1 ) {
+    warn "$Prog: ERROR: Unable to find reservation for $instance_id\n";
+    return undef;
   }
 
-  return $instance_volumes;
+  my $volume_ids;
+  # RunningInstances->block_device_mapping is a Maybe[ArrayRef]
+  for my $instance (grep { $_->block_device_mapping } @{$reservations->[0]->instances_set}) {
+    # BlockDeviceMapping->ebs is a Maybe[ArrayRef]
+    for my $bd (grep { $_->ebs } @{$instance->block_device_mapping}) {
+      push @$volume_ids, $bd->ebs->volume_id;
+    }
+  }
+
+  unless ( $volume_ids ) {
+    warn "$Prog: ERROR: Unable to find EBS volume ids for $instance_id\n";
+    return undef;
+  }
+
+  return $ec2->describe_volumes(VolumeId => $volume_ids);
 }
 
 sub discover_volume_ids {
