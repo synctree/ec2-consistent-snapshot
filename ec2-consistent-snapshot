@@ -81,7 +81,6 @@ GetOptions(
   'tag=s'                        => \@tags,
   'xfs-filesystem=s'             => \@freeze_filesystem,
   'freeze-filesystem=s'          => \@freeze_filesystem,
-  'filesystem=s'                 => \@no_freeze_filesystem,
   'no-freeze-filesystem=s'       => \@no_freeze_filesystem,
   'mongo'                        => \$mongo,
   'mongo-username=s'             => \$mongo_username,
@@ -955,10 +954,8 @@ You may specify this option multiple times if you need to freeze multiple
 filesystems on the the EBS volume(s).
 
 If no EBS volume ids are specified as command arguments, the specified
-mountpoints will be used along with mount points passed to --filesystem to
-determine the volume ids.
-
-=item --filesystem MOUNTPOINT
+mountpoints will be used along with mount points passed to
+--no-freeze-filesystem to determine the volume ids.
 
 =item --no-freeze-filesystem MOUNTPOINT
 
@@ -1219,7 +1216,7 @@ is necessary to select a CPAN mirror on Hardy.
 
 If no EBS volume ids are passed as arguments to ec2-consistent-snapshot, it
 will attempt to discover the volume ids based on the mount points passed to
---filesystem and --freeze-filesystem.
+--no-freeze-filesystem and --freeze-filesystem.
 
 In order to determine the volume ids, ec2-consistent-snapshot first makes a
 call to the EC2 instance metadata service to determine the instance's id. Next,
