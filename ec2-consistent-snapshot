@@ -432,7 +432,7 @@ sub discover_volume_ids {
   for my $fs (@filesystems) {
     my $device = qx(mountpoint -dq "$fs");
     chomp $device;
-    unless ($device) {
+    unless ($? == 0 && $device) {
       warn "$Prog: ERROR: $fs is not a mount point\n";
       return ();
     }
