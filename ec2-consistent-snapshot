@@ -366,7 +366,7 @@ sub get {
   return $content;
 }
 
-sub ec2_instance_volumes {
+sub ec2_instance_description {
   my ($ec2_endpoint) = @_;
 
   $Debug and warn "$Prog: ", scalar localtime,
@@ -378,31 +378,17 @@ sub ec2_instance_volumes {
     return undef;
   }
 
-  $Debug and warn "$Prog: ", scalar localtime,
-                  ": Determining volumes for instance id $instance_id\n";
   my $ec2 = ec2_connection($ec2_endpoint);
 
+  $Debug and warn "$Prog: ", scalar localtime,
+                  ": Fetching instance description for $instance_id\n";
   my $reservations = $ec2->describe_instances(InstanceId => $instance_id);
   unless ( defined($reservations) && scalar(@$reservations) == 1 ) {
     warn "$Prog: ERROR: Unable to find reservation for $instance_id\n";
     return undef;
   }
 
-  my $volume_ids;
-  # RunningInstances->block_device_mapping is a Maybe[ArrayRef]
-  for my $instance (grep { $_->block_device_mapping } @{$reservations->[0]->instances_set}) {
-    # BlockDeviceMapping->ebs is a Maybe[ArrayRef]
-    for my $bd (grep { $_->ebs } @{$instance->block_device_mapping}) {
-      push @$volume_ids, $bd->ebs->volume_id;
-    }
-  }
-
-  unless ( $volume_ids ) {
-    warn "$Prog: ERROR: Unable to find EBS volume ids for $instance_id\n";
-    return undef;
-  }
-
-  return $ec2->describe_volumes(VolumeId => $volume_ids);
+  return $reservations->[0]->instances_set->[0];
 }
 
 sub discover_volume_ids {
@@ -419,14 +405,36 @@ sub discover_volume_ids {
     return ();
   }
 
-  my $ec2_volumes = ec2_instance_volumes($ec2_endpoint);
-  unless ( defined $ec2_volumes ) {
-    warn "$Prog: ERROR: Unable to determine volumes for instance\n";
+  $Debug and warn "$Prog: ", scalar localtime,
+                  ": Discovering volume ids for: @filesystems\n";
+
+  my $ec2_instance = ec2_instance_description($ec2_endpoint);
+  return () unless $ec2_instance;
+
+  # RunningInstances->block_device_mapping is a Maybe[ArrayRef]
+  unless ( $ec2_instance->block_device_mapping ) {
+    warn "$Prog: ERROR: Unable to find block device mappings for ", $ec2_instance->instance_id, "\n";
     return ();
   }
 
-  $Debug and warn "$Prog: ", scalar localtime,
-                  ": Discovering volume ids for: @filesystems\n";
+  my %ebs_volume_ids = ();
+  for my $bd ( @{$ec2_instance->block_device_mapping} ) {
+    # BlockDeviceMapping->ebs is a Maybe[ArrayRef]
+    $ebs_volume_ids{$bd->device_name} = $bd->ebs->volume_id if $bd->ebs;
+  }
+
+  unless ( %ebs_volume_ids ) {
+    warn "$Prog: ERROR: Unable to find EBS block devices for ", $ec2_instance->instance_id, "\n";
+    return ();
+  }
+
+  if ( $Debug ) {
+    warn "$Prog: ", scalar localtime,
+         ": Found EBS block devices for ", $ec2_instance->instance_id, ": \n";
+    for my $dev (sort keys %ebs_volume_ids) {
+      warn "$Prog: ", scalar localtime, ":     ", $ebs_volume_ids{$dev}, " ", $dev, "\n";
+    }
+  }
 
   my $volume_ids;
   for my $fs (@filesystems) {
@@ -449,15 +457,7 @@ sub discover_volume_ids {
       my $ec2_device = "/dev/$device";
       $ec2_device =~ s/\bxvd/sd/;
 
-      my $volume_id;
-      VOLUME: for my $volume (grep { $_->attachments } @$ec2_volumes) {
-        for my $attachment (@{$volume->attachments}) {
-          if ($attachment->device eq $ec2_device) {
-            $volume_id = $volume->volume_id;
-            last VOLUME;
-          }
-        }
-      }
+      my $volume_id = $ebs_volume_ids{$ec2_device};
 
       unless ( defined $volume_id ) {
         warn "$Prog: ERROR: Unable to determine volume id for device $device in mount $fs\n";
