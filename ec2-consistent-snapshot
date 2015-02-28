@@ -1136,7 +1136,7 @@ Snapshot two volumes with customized descriptions:
    --description "Description 2nd Volume"                     \
    vol-VOL1 vol-VOL2
 
-Snapshot a volume without specifying a volume id (requires ec2:DescribeVolumes
+Snapshot a volume without specifying a volume id (requires ec2:DescribeInstances
 permission):
 
  ec2-consistent-snapshot --freeze-filesystem /vol
@@ -1220,7 +1220,7 @@ will attempt to discover the volume ids based on the mount points passed to
 
 In order to determine the volume ids, ec2-consistent-snapshot first makes a
 call to the EC2 instance metadata service to determine the instance's id. Next,
-it makes a call to the DescribeVolumes EC2 api to get the list of volumes
+it makes a call to the DescribeInstances EC2 api to get the list of volumes
 attached to the instance. It then compares the device names for each attachment
 with a list of device names determined using mountpoint(1) and sysfs.
 
