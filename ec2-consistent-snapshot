@@ -449,11 +449,16 @@ sub discover_volume_ids {
     # compound device (e.g. LVM or Raid), otherwise, get the basename of the
     # symlink at /sys/dev/block/MAJOR:MINOR
     my $slaves = IO::Dir->new("/sys/dev/block/$device/slaves");
-    my $devices = ( defined $slaves )
-      ? [ grep { !/^\./ } $slaves->read() ]
-      : [ basename readlink("/sys/dev/block/$device") ];
+    my @devices = ();
+    push @devices, grep { !/^\./ } $slaves->read() if defined($slaves);
+    push @devices, basename readlink("/sys/dev/block/$device") unless scalar(@devices);
 
-    for my $device (@$devices) {
+    if ( scalar(@devices) == 0 ) {
+      warn "$Prog: ERROR: Unable to determine devices for mount $fs\n";
+      return ();
+    }
+
+    for my $device (@devices) {
       my $ec2_device = "/dev/$device";
       $ec2_device =~ s/\bxvd/sd/;
 
