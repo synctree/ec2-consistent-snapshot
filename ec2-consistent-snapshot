@@ -391,7 +391,12 @@ sub mongo_unlock {
   if ( $Noaction ) {
     warn "mongo unlock SKIPPED (--noaction)\n";
   }
-  $mongo_dbh->unlock();
+
+  # if we lock the DB, we should try really hard to unlock it afterwards
+  for(my $i = 0; $i < 10 && !$mongo_dbh->unlock(); $i++) {
+    warn "Unlock failed, retrying in 3 seconds";
+    sleep 3;
+  }
 
   $Debug and warn "$Prog: ", scalar localtime, ": mongo unlocked\n";
 
